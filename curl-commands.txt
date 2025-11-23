@@ -1,0 +1,24 @@
+# COMP S381F - 任務管理系統 RESTful API 測試指令
+# 雲端 URL: https://your-app-name.onrender.com
+
+# ==================== API 測試指令 ====================
+
+# 1. 獲取所有任務 (GET)
+curl -X GET "https://your-app-name.onrender.com/api/tasks"
+
+# 2. 獲取特定任務 (GET) - 替換 :id 為實際任務ID
+curl -X GET "https://your-app-name.onrender.com/api/tasks/657f1a4b5c8d9e001a234567"
+
+# 3. 建立新任務 (POST)
+curl -X POST "https://your-app-name.onrender.com/api/tasks" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "API測試任務",
+    "description": "這是通過REST API建立的測試任務",
+    "priority": "high",
+    "status": "pending",
+    "due_date": "2025-12-31"
+  }'
+
+# 4. 更新任務 (PUT) - 替換 :id 為實際任務ID
+curl -X PUT "https://your-app-name.onrender.com/api/tasks/657f1a4b5

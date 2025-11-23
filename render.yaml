@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: comp3810sef-task-system
+    env: node
+    plan: free
+    region: singapore
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 18.0.0
+      - key: NODE_ENV
+        value: production
+
+databases:
+  - name: task-db
+    plan: free
+    type: mongodb
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: everywhere
