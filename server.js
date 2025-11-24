@@ -30,8 +30,8 @@ app.use(express.json());
 // Session configuration
 app.use(session({
     secret: process.env.SESSION_SECRET || '3810-secret-key',
-    resave: false,
-    saveUninitialized: false,
+    resave: true,
+    saveUninitialized: true,
     cookie: {
         secure: process.env.NODE_ENV === 'production',
         maxAge: 24 * 60 * 60 * 1000,
