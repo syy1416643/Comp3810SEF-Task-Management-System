@@ -188,6 +188,13 @@ app.post('/login', async (req, res) => {
     }
 });
 
+app.get('/register', (req, res) => {
+    if (req.session.user) {
+        return res.redirect('/tasks');
+    }
+    res.render('register', { message: req.query.message });
+});
+
 app.post('/register', async (req, res) => {
     try {
         const { username, password, email } = req.body;
