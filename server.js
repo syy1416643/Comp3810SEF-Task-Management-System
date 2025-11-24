@@ -7,7 +7,7 @@ const path = require('path');
 
 const app = express();
 
-const MONGODB_URI = "mongodb+srv://syy:1234@cluster0.77iuqur.mongodb.net/?appName=Cluster0";
+const MONGODB_URI = 'mongodb+srv://GP:5225766@cluster0.77iuqur.mongodb.net/?appName=Cluster0';
 const PORT = 8099;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'comp3810sef-cloud-secret-2025';
 
@@ -158,39 +158,34 @@ app.post('/login', async (req, res) => {
         const { username, password } = req.body;
         
         if (!username || !password) {
-            return res.redirect('/login?message=UserName and Password Cant be blank');
+            return res.redirect('/login?message=Fill in the username and password');
         }
         
+        await client.connect();
         const db = client.db(dbName);
         const user = await db.collection(userCollection).findOne({ username });
         
         if (!user) {
-            return res.redirect('/login?message=User Not Exist');
+            return res.redirect('/login?message=user not exist');
         }
         
         const isValid = await bcrypt.compare(password, user.password);
         if (!isValid) {
-            return res.redirect('/login?message=Password Error');
+            return res.redirect('/login?message=Error pwd');
         }
         
         req.session.user = {
-            _id: user._id,
+            _id: user._id.toString(),
             username: user.username,
             email: user.email
         };
         
-        res.redirect('/tasks');
+        return res.redirect('/tasks');
+        
     } catch (error) {
         console.error('Login Error:', error);
-        res.redirect('/login?message=Please try again');
+        return res.redirect('/login?message=Please Try Again');
     }
-});
-
-app.get('/register', (req, res) => {
-    if (req.session.user) {
-        return res.redirect('/tasks');
-    }
-    res.render('register', { message: req.query.message });
 });
 
 app.post('/register', async (req, res) => {
@@ -198,19 +193,19 @@ app.post('/register', async (req, res) => {
         const { username, password, email } = req.body;
         
         if (!username || !password || !email) {
-            return res.redirect('/register?message=Please Fill All');
+            return res.redirect('/register?message=Fill in All info');
         }
         
         if (password.length < 6) {
-            return res.redirect('/register?message=Password must be at least 6 characters');
+            return res.redirect('/register?message=At least 6 characters');
         }
         
+        await client.connect();
         const db = client.db(dbName);
         
-        //check username
         const existingUser = await db.collection(userCollection).findOne({ username });
         if (existingUser) {
-            return res.redirect('/register?message=UserName Already Exist');
+            return res.redirect('/register?message=Username Exist');
         }
         
         const hashedPassword = await bcrypt.hash(password, 10);
@@ -221,13 +216,13 @@ app.post('/register', async (req, res) => {
             created_at: new Date()
         });
         
-        res.redirect('/login?message=Reg success, Please Login');
+        res.redirect('/login?message=Register Success');
+        
     } catch (error) {
-        console.error('Reg Error:', error);
-        res.redirect('/register?message=Please Try Again');
+        console.error('Register Error:', error);
+        res.redirect('/register?message=Please Try again');
     }
 });
-
 
 app.get('/tasks', requireAuth, async (req, res) => {
     try {
@@ -575,18 +570,20 @@ app.delete('/api/tasks/:id', async (req, res) => {
 
 // ==================== Error ====================
 app.use((req, res) => {
-    res.status(404).render('error', { 
-        message: `Page Not Exist: ${req.path}`,
-        user: req.session.user 
-    });
+    const data = { message: `Page Not Exist: ${req.path}` };
+    if (req.session && req.session.user) {
+        data.user = req.session.user;
+    }
+    res.status(404).render('error', data);
 });
 
 app.use((error, req, res, next) => {
-    console.error('Server Error:', error);
-    res.status(500).render('error', { 
-        message: 'Server Error',
-        user: req.session.user 
-    });
+    console.error('Error:', error);
+    const data = { message: 'Error' };
+    if (req.session && req.session.user) {
+        data.user = req.session.user;
+    }
+    res.status(500).render('error', data);
 });
 
 // ==================== server ====================
