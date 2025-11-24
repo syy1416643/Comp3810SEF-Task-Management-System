@@ -1,5 +1,6 @@
 const express = require('express');
 const session = require('express-session');
+const MongoStore = require('connect-mongo');
 const { MongoClient, ObjectId } = require("mongodb");
 const bcrypt = require('bcryptjs');
 const path = require('path');
@@ -25,17 +26,25 @@ app.set('view engine', 'ejs');
 app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+
+// Session configuration
 app.use(session({
-    secret: SESSION_SECRET,
+    secret: process.env.SESSION_SECRET || 'comp3810sef-production-secret',
     resave: false,
     saveUninitialized: false,
-    cookie: { 
+    store: MongoStore.create({
+        mongoUrl: process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/task_management_db',
+        collectionName: 'sessions',
+        ttl: 24 * 60 * 60, // 1 day
+        autoRemove: 'native'
+    }),
+    cookie: {
+        secure: process.env.NODE_ENV === 'production',
         maxAge: 24 * 60 * 60 * 1000,
-        secure: process.env.NODE_ENV === 'production', // environment secure
-        httpOnly: true
+        httpOnly: true,
+        sameSite: 'lax'
     }
 }));
-
 // ==================database====================
 async function initializeDatabase() {
     try {
@@ -592,12 +601,12 @@ async function startServer() {
         await createTestData();
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('\n🎉 ============================================');
-            console.log('🚀 Create Success');
-            console.log(`📍 Local Access: http://localhost:${PORT}`);
-            console.log(`🌐 Cloud Access: https://你的應用名稱.onrender.com`);
-            console.log('👤 Test Account: demo / demo123');
-            console.log('🔧 Environment:', process.env.NODE_ENV || 'development');
+            console.log('\n ============================================');
+            console.log(' Create Success');
+            console.log(` Local Access: http://localhost:${PORT}`);
+            console.log(` Cloud Access: https://comp3810sef-task-management-system.onrender.com`);
+            console.log(' Test Account: demo / demo123');
+            console.log(' Environment:', process.env.NODE_ENV || 'development');
             console.log('============================================\n');
         });
    } catch (error) {
