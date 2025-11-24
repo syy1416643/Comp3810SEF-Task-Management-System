@@ -29,20 +29,13 @@ app.use(express.json());
 
 // Session configuration
 app.use(session({
-    secret: process.env.SESSION_SECRET || 'comp3810sef-production-secret',
+    secret: process.env.SESSION_SECRET || '3810-secret-key',
     resave: false,
     saveUninitialized: false,
-    store: MongoStore.create({
-        mongoUrl: process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/task_management_db',
-        collectionName: 'sessions',
-        ttl: 24 * 60 * 60, // 1 day
-        autoRemove: 'native'
-    }),
     cookie: {
         secure: process.env.NODE_ENV === 'production',
         maxAge: 24 * 60 * 60 * 1000,
-        httpOnly: true,
-        sameSite: 'lax'
+        httpOnly: true
     }
 }));
 // ==================database====================
