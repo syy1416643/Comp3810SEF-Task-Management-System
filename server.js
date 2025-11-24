@@ -1,142 +1,231 @@
 const express = require('express');
 const session = require('express-session');
-const formidable = require('express-formidable');
 const { MongoClient, ObjectId } = require("mongodb");
-const passport = require('passport');
-const LocalStrategy = require('passport-local').Strategy;
 const bcrypt = require('bcryptjs');
+const path = require('path');
 
 const app = express();
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017';
-const PORT = process.env.PORT || 8099;
+
+const MONGODB_URI = "mongodb+srv://syy:1234@cluster0.77iuqur.mongodb.net/?appName=Cluster0";
+const PORT = 8099;
+const SESSION_SECRET = process.env.SESSION_SECRET || 'comp3810sef-cloud-secret-2025';
+
+console.log('🔧 Environment:');
+console.log(' - PORT:', PORT);
+console.log(' - MONGODB_URI:', MONGODB_URI ? 'Set':'Not Set');
 
 const client = new MongoClient(MONGODB_URI);
+
 const dbName = 'task_management_db';
 const userCollection = 'users';
 const taskCollection = 'tasks';
 
-// Middle
+//middleware
 app.set('view engine', 'ejs');
 app.use(express.static('public'));
-app.use(formidable());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 app.use(session({
-    secret: 'comp3810sef-task-system-secret-2025',
+    secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-    cookie: { maxAge: 24 * 60 * 60 * 1000 }
+    cookie: { 
+        maxAge: 24 * 60 * 60 * 1000,
+        secure: process.env.NODE_ENV === 'production', // environment secure
+        httpOnly: true
+    }
 }));
-app.use(passport.initialize());
-app.use(passport.session());
 
-// Passport Setting
-passport.use(new LocalStrategy(
-    async (username, password, done) => {
-        try {
-            await client.connect();
-            const db = client.db(dbName);
-            const user = await db.collection(userCollection).findOne({ username: username });
-            
-            if (!user) {
-                return done(null, false, { message: 'User NOT Exist' });
-            }
-            
-            const isValidPassword = await bcrypt.compare(password, user.password);
-            if (!isValidPassword) {
-                return done(null, false, { message: 'Error Password' });
-            }
-            
-            return done(null, user);
-        } catch (error) {
-            return done(error);
-        }
-    }
-));
-
-passport.serializeUser((user, done) => {
-    done(null, user._id);
-});
-
-passport.deserializeUser(async (id, done) => {
+// ==================database====================
+async function initializeDatabase() {
     try {
+        console.log('🔄 Connecting Database...');
         await client.connect();
+        console.log('✅ MongoDB Connect Success');
+        
         const db = client.db(dbName);
-        const user = await db.collection(userCollection).findOne({ _id: new ObjectId(id) });
-        done(null, user);
+        
+        // create index
+        await db.collection(userCollection).createIndex({ username: 1 }, { unique: true });
+        await db.collection(taskCollection).createIndex({ user_id: 1 });
+        await db.collection(taskCollection).createIndex({ status: 1 });
+        await db.collection(taskCollection).createIndex({ created_at: -1 });
+        
+        console.log('✅ Database Index Create Success');
+        return true;
     } catch (error) {
-        done(error);
+        console.error('database Fail:', error.message);
+        return false;
     }
-});
-
-//check user
-function isAuthenticated(req, res, next) {
-    if (req.isAuthenticated()) {
-        return next();
-    }
-    res.redirect('/login');
 }
 
-// ==================== Website ====================
+async function createTestData() {
+    try {
+        const db = client.db(dbName);
+        
+        // test user
+        const testUser = await db.collection(userCollection).findOne({ username: 'demo' });
+        if (!testUser) {
+            const hashedPassword = await bcrypt.hash('demo123', 10);
+            await db.collection(userCollection).insertOne({
+                username: 'demo',
+                password: hashedPassword,
+                email: 'demo@example.com',
+                created_at: new Date()
+            });
+            console.log('✅ Testing User: demo/demo123');
+        } else {
+            console.log('✅ Testing user Exist: demo/demo123');
+        }
+        
+        // test task
+        const tasksCount = await db.collection(taskCollection).countDocuments();
+        if (tasksCount === 0) {
+            const sampleTasks = [
+                {
+                    title: 'Complet Group Project',
+                    description: 'Write Report',
+                    priority: 'high',
+                    status: 'pending',
+                    due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                    user_id: 'demo',
+                    created_at: new Date(),
+                    updated_at: new Date()
+                },
+                {
+                    title: 'Prepare Present',
+                    description: 'Make PPT',
+                    priority: 'medium',
+                    status: 'in-progress',
+                    due_date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+                    user_id: 'demo',
+                    created_at: new Date(),
+                    updated_at: new Date()
+                },
+                {
+                    title: 'Test System',
+                    description: 'Test CRUD And API',
+                    priority: 'low',
+                    status: 'completed',
+                    due_date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+                    user_id: 'demo',
+                    created_at: new Date(),
+                    updated_at: new Date(),
+                    completed_at: new Date()
+                }
+            ];
+            await db.collection(taskCollection).insertMany(sampleTasks);
+            console.log('✅ Create Test Success');
+        } else {
+            console.log(`✅ Num of Task: ${tasksCount}`);
+        }
+    } catch (error) {
+        console.error('❌ Create Data:', error.message);
+    }
+}
 
-// Home page
+// ===================check user ====================
+function requireAuth(req, res, next) {
+    if (req.session && req.session.user) {
+        return next();
+    }
+    res.redirect('/login?message=Please Login System');
+}
+
+// ==================== routes ====================
 app.get('/', (req, res) => {
     res.redirect('/login');
 });
 
-// Login
 app.get('/login', (req, res) => {
+    if (req.session.user) {
+        return res.redirect('/tasks');
+    }
     res.render('login', { message: req.query.message });
 });
 
-// Login  function
-app.post('/login', passport.authenticate('local', {
-    successRedirect: '/tasks',
-    failureRedirect: '/login?message=登入失敗，請檢查用戶名和密碼'
-}));
+app.post('/login', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        
+        if (!username || !password) {
+            return res.redirect('/login?message=UserName and Password Cant be blank');
+        }
+        
+        const db = client.db(dbName);
+        const user = await db.collection(userCollection).findOne({ username });
+        
+        if (!user) {
+            return res.redirect('/login?message=User Not Exist');
+        }
+        
+        const isValid = await bcrypt.compare(password, user.password);
+        if (!isValid) {
+            return res.redirect('/login?message=Password Error');
+        }
+        
+        req.session.user = {
+            _id: user._id,
+            username: user.username,
+            email: user.email
+        };
+        
+        res.redirect('/tasks');
+    } catch (error) {
+        console.error('Login Error:', error);
+        res.redirect('/login?message=Please try again');
+    }
+});
 
-// register
 app.get('/register', (req, res) => {
+    if (req.session.user) {
+        return res.redirect('/tasks');
+    }
     res.render('register', { message: req.query.message });
 });
 
-// Reg functiom
 app.post('/register', async (req, res) => {
     try {
-        await client.connect();
+        const { username, password, email } = req.body;
+        
+        if (!username || !password || !email) {
+            return res.redirect('/register?message=Please Fill All');
+        }
+        
+        if (password.length < 6) {
+            return res.redirect('/register?message=Password must be at least 6 characters');
+        }
+        
         const db = client.db(dbName);
         
-        const { username, password, email } = req.fields;
-        
-        // check user name exist or not 
-        const existingUser = await db.collection(userCollection).findOne({ username: username });
+        //check username
+        const existingUser = await db.collection(userCollection).findOne({ username });
         if (existingUser) {
-            return res.redirect('/register?message=User name already exist');
+            return res.redirect('/register?message=UserName Already Exist');
         }
         
         const hashedPassword = await bcrypt.hash(password, 10);
-        
-        const newUser = {
+        await db.collection(userCollection).insertOne({
             username,
             password: hashedPassword,
             email,
             created_at: new Date()
-        };
+        });
         
-        await db.collection(userCollection).insertOne(newUser);
-        res.redirect('/login?message=Reg success PLEASE Login');
+        res.redirect('/login?message=Reg success, Please Login');
     } catch (error) {
-        console.error('Error:', error);
-        res.redirect('/register?message=Please try again');
+        console.error('Reg Error:', error);
+        res.redirect('/register?message=Please Try Again');
     }
 });
 
-// Task list
-app.get('/tasks', isAuthenticated, async (req, res) => {
+
+app.get('/tasks', requireAuth, async (req, res) => {
     try {
-        await client.connect();
         const db = client.db(dbName);
+        const { status, search, message } = req.query; 
         
-        const { status, search } = req.query;
-        let query = { user_id: req.user._id.toString() };
+        let query = { user_id: req.session.user.username };
         
         if (status && status !== 'all') {
             query.status = status;
@@ -154,178 +243,172 @@ app.get('/tasks', isAuthenticated, async (req, res) => {
             .sort({ created_at: -1 })
             .toArray();
         
-        res.render('tasks', { 
-            user: req.user, 
+        res.render('tasks', {
+            user: req.session.user,
             tasks: tasks,
             currentStatus: status || 'all',
-            searchQuery: search || ''
+            searchQuery: search || '',
+            message: message 
         });
     } catch (error) {
-        console.error('Task Error:', error);
-        res.render('error', { message: 'Task Error', user: req.user });
+        console.error('Tasks Error:', error);
+        res.render('error', { 
+            message: 'Cant Get Tasks', 
+            user: req.session.user 
+        });
     }
 });
-
-// create task page
-app.get('/tasks/create', isAuthenticated, (req, res) => {
-    res.render('task-create', { user: req.user });
+app.get('/tasks/create', requireAuth, (req, res) => {
+    res.render('tasks-create', { user: req.session.user });
 });
 
-// create task setting
-app.post('/tasks/create', isAuthenticated, async (req, res) => {
+app.post('/tasks/create', requireAuth, async (req, res) => {
     try {
-        await client.connect();
+        const { title, description, priority, due_date } = req.body;
+        
+        if (!title) {
+            return res.redirect('/tasks/create?message=Fill in the Task Topic');
+        }
+        
         const db = client.db(dbName);
-        
-        const { title, description, priority, due_date } = req.fields;
-        
         const newTask = {
             title,
             description: description || '',
             priority: priority || 'medium',
             status: 'pending',
             due_date: due_date ? new Date(due_date) : null,
-            user_id: req.user._id.toString(),
+            user_id: req.session.user.username,
             created_at: new Date(),
             updated_at: new Date()
         };
         
         await db.collection(taskCollection).insertOne(newTask);
-        res.redirect('/tasks?message=Create Success');
+        res.redirect('/tasks?message=Task Creation Success');
     } catch (error) {
-        console.error('Error:', error);
-        res.redirect('/tasks/create?message=cant cerate task');
+        console.error('Task Creation Error:', error);
+        res.redirect('/tasks/create?message=Task creation Failed');
     }
 });
 
-// edit task
-app.get('/tasks/edit/:id', isAuthenticated, async (req, res) => {
+app.get('/tasks/edit/:id', requireAuth, async (req, res) => {
     try {
-        await client.connect();
         const db = client.db(dbName);
-        
-        const taskId = req.params.id;
-        const task = await db.collection(taskCollection).findOne({ 
-            _id: new ObjectId(taskId),
-            user_id: req.user._id.toString()
+        const task = await db.collection(taskCollection).findOne({
+            _id: new ObjectId(req.params.id),
+            user_id: req.session.user.username
         });
         
         if (!task) {
             return res.redirect('/tasks?message=Task Not Exist');
         }
         
-        res.render('task-edit', { 
-            user: req.user, 
-            task: task 
+        res.render('tasks-edit', {
+            user: req.session.user,
+            task: task
         });
     } catch (error) {
         console.error('Edit Error:', error);
-        res.redirect('/tasks?message=Load Error');
+        res.redirect('/tasks?message=Loading Failed');
     }
 });
 
-// update task
-app.post('/tasks/update/:id', isAuthenticated, async (req, res) => {
+app.post('/tasks/update/:id', requireAuth, async (req, res) => {
     try {
-        await client.connect();
-        const db = client.db(dbName);
+        const { title, description, priority, status, due_date } = req.body;
         
-        const taskId = req.params.id;
-        const { title, description, priority, status, due_date } = req.fields;
-        
-        const updateData = {
-            title,
-            description: description || '',
-            priority: priority || 'medium',
-            status: status || 'pending',
-            due_date: due_date ? new Date(due_date) : null,
-            updated_at: new Date()
-        };
-        
-        const result = await db.collection(taskCollection).updateOne(
-            { 
-                _id: new ObjectId(taskId),
-                user_id: req.user._id.toString()
-            },
-            { $set: updateData }
-        );
-        
-        if (result.modifiedCount === 0) {
-            return res.redirect('/tasks?message=Update Error');
+        if (!title) {
+            return res.redirect(`/tasks/edit/${req.params.id}?message=Fill the Task Topic`);
         }
         
-        res.redirect('/tasks?message=Update Success');
-    } catch (error) {
-        console.error('Error:', error);
-        res.redirect(`/tasks/edit/${req.params.id}?message=Update Error`);
-    }
-});
-
-// delete
-app.get('/tasks/delete/:id', isAuthenticated, async (req, res) => {
-    try {
-        await client.connect();
         const db = client.db(dbName);
-        
-        const taskId = req.params.id;
-        
-        const result = await db.collection(taskCollection).deleteOne({
-            _id: new ObjectId(taskId),
-            user_id: req.user._id.toString()
-        });
-        
-        if (result.deletedCount === 0) {
-            return res.redirect('/tasks?message=Delete Error');
-        }
-        
-        res.redirect('/tasks?message=Delete Success');
-    } catch (error) {
-        console.error('Delete Error:', error);
-        res.redirect('/tasks?message=Cant Delete task');
-    }
-});
-
-// Mark task
-app.get('/tasks/complete/:id', isAuthenticated, async (req, res) => {
-    try {
-        await client.connect();
-        const db = client.db(dbName);
-        
-        const taskId = req.params.id;
-        
         const result = await db.collection(taskCollection).updateOne(
-            { 
-                _id: new ObjectId(taskId),
-                user_id: req.user._id.toString()
+            {
+                _id: new ObjectId(req.params.id),
+                user_id: req.session.user.username
             },
-            { 
-                $set: { 
-                    status: 'completed',
-                    updated_at: new Date(),
-                    completed_at: new Date()
-                } 
+            {
+                $set: {
+                    title,
+                    description: description || '',
+                    priority: priority || 'medium',
+                    status: status || 'pending',
+                    due_date: due_date ? new Date(due_date) : null,
+                    updated_at: new Date()
+                }
             }
         );
         
         if (result.modifiedCount === 0) {
-            return res.redirect('/tasks?message=task Not exist or Error');
+            return res.redirect('/tasks?message=Update failed');
         }
         
-        res.redirect('/tasks?message=Mark Done');
+        res.redirect('/tasks?message=Update Success');
     } catch (error) {
-        console.error('Error:', error);
-        res.redirect('/tasks?message=Mark Error');
+        console.error('Update Error:', error);
+        res.redirect(`/tasks/edit/${req.params.id}?message=Update Failed`);
     }
 });
 
-// ==================== RESTful API ====================
+app.get('/tasks/delete/:id', requireAuth, async (req, res) => {
+    try {
+        const db = client.db(dbName);
+        const result = await db.collection(taskCollection).deleteOne({
+            _id: new ObjectId(req.params.id),
+            user_id: req.session.user.username
+        });
+        
+        if (result.deletedCount === 0) {
+            return res.redirect('/tasks?message=Delete Failed');
+        }
+        
+        res.redirect('/tasks?message=Delete Success');
+    } catch (error) {
+        console.error('Delet Error:', error);
+        res.redirect('/tasks?message=Delete failed');
+    }
+});
 
-// GET /api/tasks 
+app.get('/tasks/complete/:id', requireAuth, async (req, res) => {
+    try {
+        const db = client.db(dbName);
+        const result = await db.collection(taskCollection).updateOne(
+            {
+                _id: new ObjectId(req.params.id),
+                user_id: req.session.user.username
+            },
+            {
+                $set: {
+                    status: 'completed',
+                    updated_at: new Date(),
+                    completed_at: new Date()
+                }
+            }
+        );
+        
+        if (result.modifiedCount === 0) {
+            return res.redirect('/tasks?message=Operation Failed');
+        }
+        
+        res.redirect('/tasks?message=Task Complete');
+    } catch (error) {
+        console.error('Marking Failure:', error);
+        res.redirect('/tasks?message=Operation Failed');
+    }
+});
+
+app.get('/logout', (req, res) => {
+    req.session.destroy((err) => {
+        if (err) {
+            console.error('Logout Error:', err);
+        }
+        res.redirect('/login?message=Logout');
+    });
+});
+
+// ==================== RESTful API ====================
 app.get('/api/tasks', async (req, res) => {
     try {
-        await client.connect();
         const db = client.db(dbName);
-        
         const tasks = await db.collection(taskCollection)
             .find({})
             .sort({ created_at: -1 })
@@ -337,29 +420,25 @@ app.get('/api/tasks', async (req, res) => {
             data: tasks
         });
     } catch (error) {
-        console.error('API Error:', error);
+        console.error('API Get Task Error:', error);
         res.status(500).json({
             success: false,
-            error: 'Fail'
+            error: 'Get Task Failed'
         });
     }
 });
 
-// GET /api/tasks/:id 
 app.get('/api/tasks/:id', async (req, res) => {
     try {
-        await client.connect();
         const db = client.db(dbName);
-        
-        const taskId = req.params.id;
-        const task = await db.collection(taskCollection).findOne({ 
-            _id: new ObjectId(taskId)
+        const task = await db.collection(taskCollection).findOne({
+            _id: new ObjectId(req.params.id)
         });
         
         if (!task) {
             return res.status(404).json({
                 success: false,
-                error: 'Not Exist'
+                error: 'Task Not Exist'
             });
         }
         
@@ -368,36 +447,33 @@ app.get('/api/tasks/:id', async (req, res) => {
             data: task
         });
     } catch (error) {
-        console.error('API Error:', error);
+        console.error('API get Task Error:', error);
         res.status(500).json({
             success: false,
-            error: 'Fail'
+            error: 'Get Task Error'
         });
     }
 });
 
-// POST /api/tasks 
 app.post('/api/tasks', async (req, res) => {
     try {
-        await client.connect();
-        const db = client.db(dbName);
-        
-        const { title, description, priority, status, due_date } = req.fields;
+        const { title, description, priority, status, due_date } = req.body;
         
         if (!title) {
             return res.status(400).json({
                 success: false,
-                error: 'Topic'
+                error: 'Fill in the Task Topic'
             });
         }
         
+        const db = client.db(dbName);
         const newTask = {
             title,
             description: description || '',
             priority: priority || 'medium',
             status: status || 'pending',
             due_date: due_date ? new Date(due_date) : null,
-            user_id: 'api-user', 
+            user_id: 'api-user',
             created_at: new Date(),
             updated_at: new Date()
         };
@@ -406,30 +482,26 @@ app.post('/api/tasks', async (req, res) => {
         
         res.status(201).json({
             success: true,
-            message: 'Success',
+            message: 'Task Create Success',
             data: {
                 id: result.insertedId,
                 ...newTask
             }
         });
     } catch (error) {
-        console.error('API Error:', error);
+        console.error('API Create task Error:', error);
         res.status(500).json({
             success: false,
-            error: 'Fail'
+            error: 'Creation task Failed'
         });
     }
 });
 
-// PUT /api/tasks/:id
 app.put('/api/tasks/:id', async (req, res) => {
     try {
-        await client.connect();
+        const { title, description, priority, status, due_date } = req.body;
+        
         const db = client.db(dbName);
-        
-        const taskId = req.params.id;
-        const { title, description, priority, status, due_date } = req.fields;
-        
         const updateData = {
             updated_at: new Date()
         };
@@ -441,155 +513,112 @@ app.put('/api/tasks/:id', async (req, res) => {
         if (due_date) updateData.due_date = new Date(due_date);
         
         const result = await db.collection(taskCollection).updateOne(
-            { _id: new ObjectId(taskId) },
+            { _id: new ObjectId(req.params.id) },
             { $set: updateData }
         );
         
         if (result.modifiedCount === 0) {
             return res.status(404).json({
                 success: false,
-                error: '任務不存在'
+                error: 'Task Not Exist'
             });
         }
         
         res.json({
             success: true,
-            message: '任務更新成功'
+            message: 'Task Updated'
         });
     } catch (error) {
-        console.error('API 更新任務錯誤:', error);
+        console.error('API Update Error:', error);
         res.status(500).json({
             success: false,
-            error: '更新任務失敗'
+            error: 'Update failed'
         });
     }
 });
 
-// DELETE /api/tasks/:id - 刪除任務
 app.delete('/api/tasks/:id', async (req, res) => {
     try {
-        await client.connect();
         const db = client.db(dbName);
-        
-        const taskId = req.params.id;
-        
         const result = await db.collection(taskCollection).deleteOne({
-            _id: new ObjectId(taskId)
+            _id: new ObjectId(req.params.id)
         });
         
         if (result.deletedCount === 0) {
             return res.status(404).json({
                 success: false,
-                error: '任務不存在'
+                error: 'Task Not Exist'
             });
         }
         
         res.json({
             success: true,
-            message: '任務刪除成功'
+            message: 'Task Delet success'
         });
     } catch (error) {
-        console.error('API 刪除任務錯誤:', error);
+        console.error('API delete Error:', error);
         res.status(500).json({
             success: false,
-            error: '刪除任務失敗'
+            error: 'Delete Error'
         });
     }
 });
 
-// 登出
-app.get('/logout', (req, res) => {
-    req.logout(() => {
-        res.redirect('/login?message=已成功登出');
+// ==================== Error ====================
+app.use((req, res) => {
+    res.status(404).render('error', { 
+        message: `Page Not Exist: ${req.path}`,
+        user: req.session.user 
     });
 });
 
-// 初始化資料庫
-async function initializeDatabase() {
-    try {
-        await client.connect();
-        const db = client.db(dbName);
-        
-        // 建立索引
-        await db.collection(userCollection).createIndex({ username: 1 }, { unique: true });
-        await db.collection(taskCollection).createIndex({ user_id: 1 });
-        await db.collection(taskCollection).createIndex({ status: 1 });
-        await db.collection(taskCollection).createIndex({ due_date: 1 });
-        
-        console.log('資料庫初始化完成');
-    } catch (error) {
-        console.error('資料庫初始化失敗:', error);
-    }
-}
-
-// 建立測試數據
-async function createTestData() {
-    try {
-        await client.connect();
-        const db = client.db(dbName);
-        
-        // 檢查是否已有測試用戶
-        const testUser = await db.collection(userCollection).findOne({ username: 'demo' });
-        if (!testUser) {
-            const hashedPassword = await bcrypt.hash('demo123', 10);
-            await db.collection(userCollection).insertOne({
-                username: 'demo',
-                password: hashedPassword,
-                email: 'demo@example.com',
-                created_at: new Date()
-            });
-            console.log('測試用戶建立完成: demo/demo123');
-        }
-        
-        // 建立一些測試任務
-        const tasksCount = await db.collection(taskCollection).countDocuments();
-        if (tasksCount === 0) {
-            const sampleTasks = [
-                {
-                    title: '完成專案報告',
-                    description: '撰寫小組專案的最終報告',
-                    priority: 'high',
-                    status: 'pending',
-                    due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-                    user_id: 'demo',
-                    created_at: new Date(),
-                    updated_at: new Date()
-                },
-                {
-                    title: '準備演示文稿',
-                    description: '製作5分鐘的專案演示PPT',
-                    priority: 'medium',
-                    status: 'in-progress',
-                    due_date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
-                    user_id: 'demo',
-                    created_at: new Date(),
-                    updated_at: new Date()
-                },
-                {
-                    title: '測試系統功能',
-                    description: '全面測試所有CRUD操作和API',
-                    priority: 'low',
-                    status: 'completed',
-                    due_date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-                    user_id: 'demo',
-                    created_at: new Date(),
-                    updated_at: new Date(),
-                    completed_at: new Date()
-                }
-            ];
-            await db.collection(taskCollection).insertMany(sampleTasks);
-            console.log('測試任務數據建立完成');
-        }
-    } catch (error) {
-        console.error('建立測試數據錯誤:', error);
-    }
-}
-
-// 啟動伺服器
-app.listen(PORT, '0.0.0.0', async () => {
-    console.log(`任務管理系統運行在 http://0.0.0.0:${PORT}`);
-    await initializeDatabase();
-    await createTestData();
-    console.log('系統準備就緒！');
-    console.log('測試帳號: demo / demo123');
+app.use((error, req, res, next) => {
+    console.error('Server Error:', error);
+    res.status(500).render('error', { 
+        message: 'Server Error',
+        user: req.session.user 
+    });
 });
+
+// ==================== server ====================
+async function startServer() {
+    try {
+        const dbInitialized = await initializeDatabase();
+        if (!dbInitialized) {
+            console.log('❌ Database，Mongodb Connection Error');
+            process.exit(1);
+        }
+        
+        await createTestData();
+        
+        app.listen(PORT, '0.0.0.0', () => {
+            console.log('\n🎉 ============================================');
+            console.log('🚀 Create Success');
+            console.log(`📍 Local Access: http://localhost:${PORT}`);
+            console.log(`🌐 Cloud Access: https://你的應用名稱.onrender.com`);
+            console.log('👤 Test Account: demo / demo123');
+            console.log('🔧 Environment:', process.env.NODE_ENV || 'development');
+            console.log('============================================\n');
+        });
+   } catch (error) {
+        console.error('❌ Server Error:', error);
+        process.exit(1);
+    }
+}
+
+process.on('SIGINT', async () => {
+    console.log('\n🔄 Closing Server...');
+    await client.close();
+    console.log('✅ Server Closed');
+    process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+    console.log('\n🔄 Closing Server...');
+    await client.close();
+    console.log('✅ Server Closed');
+    process.exit(0);
+});
+
+
+startServer();

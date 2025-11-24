@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>任務管理 - <%= user.username %></title>
+    <title>Task Manage - <%= user.username %></title>
     <style>
         * {
             margin: 0;
@@ -155,6 +155,11 @@
             color: #155724;
             border: 1px solid #c3e6cb;
         }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
         .empty-state {
             text-align: center;
             padding: 60px 20px;
@@ -195,97 +200,103 @@
     <div class="container">
         <div class="header">
             <div>
-                <h1 class="welcome">歡迎, <%= user.username %></h1>
-                <div class="user-info">任務管理系統 | COMP S381F 專案</div>
+                <h1 class="welcome">Welcome, <%= user.username %></h1>
+                <div class="user-info">Task Manage System | COMP S381F</div>
             </div>
             <div>
-                <a href="/tasks/create" class="btn btn-primary">➕ 新增任務</a>
-                <a href="/logout" class="btn btn-danger">🚪 登出</a>
+                <a href="/tasks/create" class="btn btn-primary">➕Add Tasks</a>
+                <a href="/logout" class="btn btn-danger">🚪 Logout</a>
             </div>
         </div>
 
-        <% if (req.query.message) { %>
-            <div class="message success"><%= req.query.message %></div>
+        <% if (typeof message !== 'undefined' && message) { %>
+            <div class="message success"><%= message %></div>
         <% } %>
 
         <div class="filters">
             <form action="/tasks" method="GET" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                <input type="text" name="search" placeholder="🔍 搜尋任務標題或描述..." value="<%= searchQuery %>">
+                <input type="text" name="search" placeholder="🔍 Search task Topic or state..." value="<%= typeof searchQuery !== 'undefined' ? searchQuery : '' %>">
                 <select name="status">
-                    <option value="all" <%= currentStatus === 'all' ? 'selected' : '' %>>所有狀態</option>
-                    <option value="pending" <%= currentStatus === 'pending' ? 'selected' : '' %>>待處理</option>
-                    <option value="in-progress" <%= currentStatus === 'in-progress' ? 'selected' : '' %>>進行中</option>
-                    <option value="completed" <%= currentStatus === 'completed' ? 'selected' : '' %>>已完成</option>
+                    <option value="all" <%= (typeof currentStatus !== 'undefined' && currentStatus === 'all') ? 'selected' : '' %>>All</option>
+                    <option value="pending" <%= (typeof currentStatus !== 'undefined' && currentStatus === 'pending') ? 'selected' : '' %>>Pending</option>
+                    <option value="in-progress" <%= (typeof currentStatus !== 'undefined' && currentStatus === 'in-progress') ? 'selected' : '' %>>In Progress</option>
+                    <option value="completed" <%= (typeof currentStatus !== 'undefined' && currentStatus === 'completed') ? 'selected' : '' %>>Completed</option>
                 </select>
-                <button type="submit" class="btn btn-primary">篩選</button>
-                <a href="/tasks" class="btn btn-info">清除</a>
+                <button type="submit" class="btn btn-primary">Find</button>
+                <a href="/tasks" class="btn btn-info">Clear</a>
             </form>
         </div>
 
-        <% if (tasks.length === 0) { %>
+        <% if (typeof tasks !== 'undefined' && tasks.length === 0) { %>
             <div class="empty-state">
-                <h3>📝 還沒有任務</h3>
-                <p>開始建立你的第一個任務來管理你的工作！</p>
-                <a href="/tasks/create" class="btn btn-primary" style="margin-top: 15px;">建立第一個任務</a>
+                <h3>📝 Nothing</h3>
+                <p>Start to Create The First Task！</p>
+                <a href="/tasks/create" class="btn btn-primary" style="margin-top: 15px;">Create the First Tasks</a>
             </div>
-        <% } else { %>
+        <% } else if (typeof tasks !== 'undefined' && tasks.length > 0) { %>
             <table class="task-table">
                 <thead>
                     <tr>
-                        <th>標題</th>
-                        <th>描述</th>
-                        <th>優先級</th>
-                        <th>狀態</th>
-                        <th>截止日期</th>
-                        <th>建立時間</th>
-                        <th>操作</th>
+                        <th>Topic</th>
+                        <th>Description</th>
+                        <th>Level</th>
+                        <th>state</th>
+                        <th>deadline</th>
+                        <th>Create time</th>
+                        <th>Operation</th>
                     </tr>
                 </thead>
                 <tbody>
                     <% tasks.forEach(task => { %>
                     <tr class="priority-<%= task.priority %> <%= task.status === 'completed' ? 'status-completed' : '' %>">
                         <td><strong><%= task.title %></strong></td>
-                        <td><%= task.description || '無描述' %></td>
+                        <td><%= task.description || 'No Description' %></td>
                         <td>
                             <% if (task.priority === 'high') { %>
-                                <span style="color: #dc3545;">🔴 高</span>
+                                <span style="color: #dc3545;">🔴 High</span>
                             <% } else if (task.priority === 'medium') { %>
-                                <span style="color: #ffc107;">🟡 中</span>
+                                <span style="color: #ffc107;">🟡 Medium</span>
                             <% } else { %>
-                                <span style="color: #28a745;">🟢 低</span>
+                                <span style="color: #28a745;">🟢 Low</span>
                             <% } %>
                         </td>
                         <td>
                             <% if (task.status === 'pending') { %>
-                                <span class="status-pending">⏳ 待處理</span>
+                                <span class="status-pending">⏳ Pending</span>
                             <% } else if (task.status === 'in-progress') { %>
-                                <span class="status-in-progress">🚀 進行中</span>
+                                <span class="status-in-progress">🚀 in Progress</span>
                             <% } else { %>
-                                <span class="status-completed">✅ 已完成</span>
+                                <span class="status-completed">✅ Completed</span>
                             <% } %>
                         </td>
                         <td>
                             <% if (task.due_date) { %>
-                                <%= task.due_date.toLocaleDateString('zh-TW') %>
-                                <% const daysLeft = Math.ceil((task.due_date - new Date()) / (1000 * 60 * 60 * 24)); %>
+                                <%= new Date(task.due_date).toLocaleDateString('zh-TW') %>
+                                <% const daysLeft = Math.ceil((new Date(task.due_date) - new Date()) / (1000 * 60 * 60 * 24)); %>
                                 <% if (daysLeft < 0) { %>
-                                    <br><small style="color: #dc3545;">(已過期)</small>
+                                    <br><small style="color: #dc3545;">(Failed)</small>
                                 <% } else if (daysLeft <= 3) { %>
-                                    <br><small style="color: #ffc107;">(剩<%= daysLeft %>天)</small>
+                                    <br><small style="color: #ffc107;">(<%= daysLeft %>Days Left)</small>
                                 <% } %>
                             <% } else { %>
-                                無
+                                Nothing
                             <% } %>
                         </td>
-                        <td><%= task.created_at.toLocaleDateString('zh-TW') %></td>
+                        <td>
+                            <% if (task.created_at) { %>
+                                <%= new Date(task.created_at).toLocaleDateString('en') %>
+                            <% } else { %>
+                                NO
+                            <% } %>
+                        </td>
                         <td>
                             <div class="action-buttons">
                                 <% if (task.status !== 'completed') { %>
-                                    <a href="/tasks/complete/<%= task._id %>" class="btn btn-success btn-sm" title="標記完成">✅</a>
+                                    <a href="/tasks/complete/<%= task._id || task.id %>" class="btn btn-success btn-sm" title="Completed">✅</a>
                                 <% } %>
-                                <a href="/tasks/edit/<%= task._id %>" class="btn btn-warning btn-sm" title="編輯">✏️</a>
-                                <a href="/tasks/delete/<%= task._id %>" class="btn btn-danger btn-sm" title="刪除" 
-                                   onclick="return confirm('確定要刪除任務：<%= task.title %> 嗎？')">🗑️</a>
+                                <a href="/tasks/edit/<%= task._id || task.id %>" class="btn btn-warning btn-sm" title="Edit">✏️</a>
+                                <a href="/tasks/delete/<%= task._id || task.id %>" class="btn btn-danger btn-sm" title="Delete" 
+                                   onclick="return confirm('Comfirm to Delete：<%= task.title %> ?')">🗑️</a>
                             </div>
                         </td>
                     </tr>
@@ -294,9 +305,34 @@
             </table>
             
             <div style="margin-top: 20px; text-align: center; color: #6c757d;">
-                顯示 <%= tasks.length %> 個任務
+                <%= tasks.length %> Tasks
+            </div>
+        <% } else { %>
+            <div class="empty-state">
+                <h3>❌ Data loading Failed</h3>
+                <p>Cant load the data</p>
             </div>
         <% } %>
     </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const message = urlParams.get('message');
+        if (message && !document.querySelector('.message')) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message success';
+            messageDiv.textContent = decodeURIComponent(message);
+            document.querySelector('.container').insertBefore(messageDiv, document.querySelector('.filters'));
+        }
+
+        setTimeout(() => {
+            const messages = document.querySelectorAll('.message');
+            messages.forEach(msg => {
+                msg.style.transition = 'opacity 0.5s';
+                msg.style.opacity = '0';
+                setTimeout(() => msg.remove(), 500);
+            });
+        }, 5000);
+    </script>
 </body>
 </html>

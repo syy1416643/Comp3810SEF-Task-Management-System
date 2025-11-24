@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>註冊 - 任務管理系統</title>
+    <title>Register - Task Manage System</title>
     <style>
         * {
             margin: 0;
@@ -99,7 +99,7 @@
 </head>
 <body>
     <div class="register-container">
-        <h1>註冊帳號</h1>
+        <h1>Register Account</h1>
         
         <% if (message) { %>
             <div class="message error"><%= message %></div>
@@ -107,25 +107,25 @@
         
         <form action="/register" method="POST">
             <div class="form-group">
-                <label for="username">用戶名:</label>
-                <input type="text" id="username" name="username" required placeholder="輸入用戶名">
+                <label for="username">Username:</label>
+                <input type="text" id="username" name="username" required placeholder="Username">
             </div>
             
             <div class="form-group">
-                <label for="email">電子郵件:</label>
-                <input type="email" id="email" name="email" required placeholder="輸入電子郵件">
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email" required placeholder="Email Address">
             </div>
             
             <div class="form-group">
-                <label for="password">密碼:</label>
-                <input type="password" id="password" name="password" required minlength="6" placeholder="至少6位字符">
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" required minlength="6" placeholder="At least 6 character">
             </div>
             
-            <button type="submit">註冊</button>
+            <button type="submit">Register</button>
         </form>
         
         <div class="login-link">
-            <p>已經有帳號？ <a href="/login">立即登入</a></p>
+            <p>Account? <a href="/login">Login Now</a></p>
         </div>
     </div>
 </body>

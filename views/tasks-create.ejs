@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Task - Task Manage System</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f8f9fa; color: #333; line-height: 1.6; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center; }
+        h1 { color: #333; }
+        .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; text-decoration: none; display: inline-block; font-size: 14px; transition: all 0.3s; }
+        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+        .form-container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .form-group { margin-bottom: 25px; }
+        label { display: block; margin-bottom: 8px; color: #555; font-weight: 500; font-size: 16px; }
+        input, select, textarea { width: 100%; padding: 12px; border: 2px solid #e1e5e9; border-radius: 6px; font-size: 16px; transition: border-color 0.3s; font-family: inherit; }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: #667eea; }
+        textarea { height: 120px; resize: vertical; }
+        .form-actions { display: flex; gap: 15px; margin-top: 30px; }
+        .required::after { content: " *"; color: #dc3545; }
+        .message { padding: 12px; margin: 15px 0; border-radius: 6px; text-align: center; }
+        .error { background: #fee; color: #c33; border: 1px solid #fcc; }
+        .success { background: #efe; color: #363; border: 1px solid #cfc; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Create New Tasks</h1>
+            <a href="/tasks" class="btn btn-secondary">← Back to Task List</a>
+        </div>
+
+        <div id="messageContainer"></div>
+
+        <div class="form-container">
+            <form action="/tasks/create" method="POST">
+                <div class="form-group">
+                    <label for="title" class="required">Title</label>
+                    <input type="text" id="title" name="title" required placeholder="Enter the Title...">
+                </div>
+                
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <textarea id="description" name="description" placeholder="Enter Description..."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="priority">Level</label>
+                    <select id="priority" name="priority">
+                        <option value="low">🟢 Low</option>
+                        <option value="medium" selected>🟡 Medium</option>
+                        <option value="high">🔴 High</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="due_date">Deadline</label>
+                    <input type="date" id="due_date" name="due_date">
+                    <small style="color: #666; display: block; margin-top: 5px;">Deadline</small>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Create Task</button>
+                    <a href="/tasks" class="btn btn-secondary">Cancel;</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const message = urlParams.get('message');
+        if (message) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message error';
+            messageDiv.textContent = decodeURIComponent(message);
+            document.getElementById('messageContainer').appendChild(messageDiv);
+            
+            setTimeout(() => {
+                messageDiv.style.transition = 'opacity 0.5s';
+                messageDiv.style.opacity = '0';
+                setTimeout(() => messageDiv.remove(), 500);
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
