@@ -23,6 +23,7 @@ const taskCollection = 'tasks';
 
 //middleware
 app.set('view engine', 'ejs');
+app.set('views', path.join(_idrname, 'views'));
 app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
@@ -39,8 +40,8 @@ app.use(session({
 	ttl: 24*60*60
     }),
     cookie: {
-        secure: true,
-	sameSite: 'none',
+        secure: process.env.NODE_ENV==='production',
+	sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
         maxAge: 24 * 60 * 60 * 1000,
         httpOnly: true
     }
@@ -183,13 +184,13 @@ app.post('/login', async (req, res) => {
         }
         
         req.session.user = {
-            _id: user._id.toString(),
+            id: user._id.toString(),
             username: user.username,
             email: user.email
         };
 
         req.session.save((err) => {
-            if (err) {
+            if (saveErr) {
                 console.error('Session save error:', err);
                 return res.redirect('/login?message=Session error');
             }
