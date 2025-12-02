@@ -8,7 +8,7 @@ const path = require('path');
 const app = express();
 
 const MONGODB_URI = 'mongodb+srv://GP:5225766@cluster0.77iuqur.mongodb.net/?appName=Cluster0';
-const PORT = 8099;
+const PORT = process.env.PORT|| 8099;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'comp3810sef-cloud-secret-2025';
 
 console.log('🔧 Environment:');
@@ -32,6 +32,12 @@ app.use(session({
     secret: process.env.SESSION_SECRET || '3810-secret-key',
     resave: false,
     saveUninitialized: false,
+    store: MongoStore.create({
+	mongoUrl: MONGODB_URL,
+	dbName: dbName,
+	collectionName: 'sessions',
+	ttl: 24*60*60
+    }),
     cookie: {
         secure: process.env.NODE_ENV === 'production',
 	sameSite: process.env.NODE_ENV === 'production' ? 'none' :'lax',
@@ -39,6 +45,14 @@ app.use(session({
         httpOnly: true
     }
 }));
+
+app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+    console.log('Session ID:', req.sessionID);
+    console.log('Session user:', req.session.user);
+    next();
+});
+
 // ==================database====================
 async function initializeDatabase() {
     try {
@@ -173,8 +187,16 @@ app.post('/login', async (req, res) => {
             username: user.username,
             email: user.email
         };
+
+        req.session.save((err) => {
+            if (err) {
+                console.error('Session save error:', err);
+                return res.redirect('/login?message=Session error');
+            }
+            console.log('✅ Login successful for user:', username);
+            return res.redirect('/tasks');
+        });
         
-        return res.redirect('/tasks');
         
     } catch (error) {
         console.error('Login Error:', error);
