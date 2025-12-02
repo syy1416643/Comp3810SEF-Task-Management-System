@@ -23,7 +23,6 @@ const taskCollection = 'tasks';
 
 //middleware
 app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
 app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
@@ -190,7 +189,7 @@ app.post('/login', async (req, res) => {
         };
 
         req.session.save((err) => {
-            if (saveErr) {
+            if (err) {
                 console.error('Session save error:', err);
                 return res.redirect('/login?message=Session error');
             }
