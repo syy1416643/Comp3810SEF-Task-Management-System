@@ -33,7 +33,7 @@ app.use(session({
     resave: false,
     saveUninitialized: false,
     store: MongoStore.create({
-	mongoUrl: MONGODB_URL,
+	mongoUrl: MONGODB_URI,
 	dbName: dbName,
 	collectionName: 'sessions',
 	ttl: 24*60*60
